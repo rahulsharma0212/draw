@@ -6,7 +6,7 @@
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="./style.css">
 <script src="./draw.js"></script>
-<script src="./truf.js"></script>
+<!-- <script src="./truf.js"></script> -->
 <script src="https://apis.mapmyindia.com/advancedmaps/api/44ce1a15d05ddf735b82f88d97fec3ae/map_sdk?layer=vector&v=2.0"></script>
 <style>
 body { margin: 0; padding: 0; }
@@ -81,7 +81,7 @@ body { margin: 0; padding: 0; }
         const data = draw.getAll();
         const answer = document.getElementById('calculated-area');
         if (data.features.length > 0) {
-            const area = turf.area(data);
+            const area = area$1(data);
             // Restrict the area to 2 decimal points.
             const rounded_area = Math.round(area * 100) / 100;
             answer.innerHTML = `<p><strong>${rounded_area}</strong></p><p>square meters</p>`;
@@ -92,6 +92,178 @@ body { margin: 0; padding: 0; }
         }
     }
 </script>
+
+
+<script>
+    
+var RADIUS = 6378137;
+
+function area$1(geojson) {  debugger;
+    return geomReduce(geojson, function (value, geom) {
+        return value + calculateArea(geom);
+    }, 0);
+}
+
+function calculateArea(geojson) {
+    var area = 0, i;
+    switch (geojson.type) {
+    case 'Polygon':
+        return polygonArea(geojson.coordinates);
+    case 'MultiPolygon':
+        for (i = 0; i < geojson.coordinates.length; i++) {
+            area += polygonArea(geojson.coordinates[i]);
+        }
+        return area;
+    case 'Point':
+    case 'MultiPoint':
+    case 'LineString':
+    case 'MultiLineString':
+        return 0;
+    case 'GeometryCollection':
+        for (i = 0; i < geojson.geometries.length; i++) {
+            area += calculateArea(geojson.geometries[i]);
+        }
+        return area;
+    }
+}
+
+function polygonArea(coords) {
+    var area = 0;
+    if (coords && coords.length > 0) {
+        area += Math.abs(ringArea(coords[0]));
+        for (var i = 1; i < coords.length; i++) {
+            area -= Math.abs(ringArea(coords[i]));
+        }
+    }
+    return area;
+}
+
+function ringArea(coords) {
+    var p1;
+    var p2;
+    var p3;
+    var lowerIndex;
+    var middleIndex;
+    var upperIndex;
+    var i;
+    var area = 0;
+    var coordsLength = coords.length;
+
+    if (coordsLength > 2) {
+        for (i = 0; i < coordsLength; i++) {
+            if (i === coordsLength - 2) { // i = N-2
+                lowerIndex = coordsLength - 2;
+                middleIndex = coordsLength - 1;
+                upperIndex = 0;
+            } else if (i === coordsLength - 1) { // i = N-1
+                lowerIndex = coordsLength - 1;
+                middleIndex = 0;
+                upperIndex = 1;
+            } else { // i = 0 to N-3
+                lowerIndex = i;
+                middleIndex = i + 1;
+                upperIndex = i + 2;
+            }
+            p1 = coords[lowerIndex];
+            p2 = coords[middleIndex];
+            p3 = coords[upperIndex];
+            area += (rad(p3[0]) - rad(p1[0])) * Math.sin(rad(p2[1]));
+        }
+
+        area = area * RADIUS * RADIUS / 2;
+    }
+
+    return area;
+}
+
+function rad(_) {
+    return _ * Math.PI / 180;
+}
+
+function geomReduce(geojson, callback, initialValue) {
+    var previousValue = initialValue;
+    geomEach(geojson, function (currentGeometry, featureIndex, featureProperties, featureBBox, featureId) {
+        if (featureIndex === 0 && initialValue === undefined) previousValue = currentGeometry;
+        else previousValue = callback(previousValue, currentGeometry, featureIndex, featureProperties, featureBBox, featureId);
+    });
+    return previousValue;
+}
+
+function geomEach(geojson, callback) {
+    var i, j, g, geometry$$1, stopG,
+        geometryMaybeCollection,
+        isGeometryCollection,
+        featureProperties,
+        featureBBox,
+        featureId,
+        featureIndex = 0,
+        isFeatureCollection = geojson.type === 'FeatureCollection',
+        isFeature = geojson.type === 'Feature',
+        stop = isFeatureCollection ? geojson.features.length : 1;
+
+    // This logic may look a little weird. The reason why it is that way
+    // is because it's trying to be fast. GeoJSON supports multiple kinds
+    // of objects at its root: FeatureCollection, Features, Geometries.
+    // This function has the responsibility of handling all of them, and that
+    // means that some of the `for` loops you see below actually just don't apply
+    // to certain inputs. For instance, if you give this just a
+    // Point geometry, then both loops are short-circuited and all we do
+    // is gradually rename the input until it's called 'geometry'.
+    //
+    // This also aims to allocate as few resources as possible: just a
+    // few numbers and booleans, rather than any temporary arrays as would
+    // be required with the normalization approach.
+    for (i = 0; i < stop; i++) {
+
+        geometryMaybeCollection = (isFeatureCollection ? geojson.features[i].geometry :
+            (isFeature ? geojson.geometry : geojson));
+        featureProperties = (isFeatureCollection ? geojson.features[i].properties :
+            (isFeature ? geojson.properties : {}));
+        featureBBox = (isFeatureCollection ? geojson.features[i].bbox :
+            (isFeature ? geojson.bbox : undefined));
+        featureId = (isFeatureCollection ? geojson.features[i].id :
+            (isFeature ? geojson.id : undefined));
+        isGeometryCollection = (geometryMaybeCollection) ? geometryMaybeCollection.type === 'GeometryCollection' : false;
+        stopG = isGeometryCollection ? geometryMaybeCollection.geometries.length : 1;
+
+        for (g = 0; g < stopG; g++) {
+            geometry$$1 = isGeometryCollection ?
+                geometryMaybeCollection.geometries[g] : geometryMaybeCollection;
+
+            // Handle null Geometry
+            if (geometry$$1 === null) {
+                callback(null, featureIndex, featureProperties, featureBBox, featureId);
+                continue;
+            }
+            switch (geometry$$1.type) {
+            case 'Point':
+            case 'LineString':
+            case 'MultiPoint':
+            case 'Polygon':
+            case 'MultiLineString':
+            case 'MultiPolygon': {
+                callback(geometry$$1, featureIndex, featureProperties, featureBBox, featureId);
+                break;
+            }
+            case 'GeometryCollection': {
+                for (j = 0; j < geometry$$1.geometries.length; j++) {
+                    callback(geometry$$1.geometries[j], featureIndex, featureProperties, featureBBox, featureId);
+                }
+                break;
+            }
+            default:
+                throw new Error('Unknown Geometry Type');
+            }
+        }
+        // Only increase `featureIndex` per each feature
+        featureIndex++;
+    }
+}
+
+
+
+</script>
+
 
 </body>
 </html>
