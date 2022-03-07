@@ -1,330 +1,205 @@
-<!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
-    <title>Draw a polygon and calculate its area</title>
-    <meta
-      name="viewport"
-      content="initial-scale=1,maximum-scale=1,user-scalable=no"
-    />
-    <link rel="stylesheet" href="./style.css" />
-    <script src="./draw.js"></script>
-    <!-- <script src="./truf.js"></script> -->
-    <script src="https://apis.mapmyindia.com/advancedmaps/api/44ce1a15d05ddf735b82f88d97fec3ae/map_sdk?layer=vector&v=2.0"></script>
     <style>
-      body {
+      html,
+      body,
+      #map {
         margin: 0;
         padding: 0;
-      }
-      #map {
-        position: absolute;
-        top: 0;
-        bottom: 0;
         width: 100%;
+        height: 94vh;
       }
     </style>
+    <script
+      src="https://apis.mapmyindia.com/advancedmaps/api/44ce1a15d05ddf735b82f88d97fec3ae/map_sdk?layer=vector&v=2.0&callback=initMap1"
+      defer
+      async
+    ></script>
   </head>
   <body>
-    <style>
-      .calculation-box {
-        height: 75px;
-        width: 150px;
-        position: absolute;
-        bottom: 40px;
-        left: 10px;
-        background-color: rgba(255, 255, 255, 0.9);
-        padding: 15px;
-        text-align: center;
-      }
-
-      p {
-        font-family: "Open Sans";
-        margin: 0;
-        font-size: 13px;
-      }
-    </style>
-
     <div id="map"></div>
-    <div class="calculation-box">
-      <p>Click the map to draw a polygon.</p>
-      <div id="calculated-area"></div>
-    </div>
 
     <script>
-      /*mapboxgl.accessToken = 'pk.eyJ1IjoicmFodWwwMjEyIiwiYSI6ImNreWExdXN3OTAxODEydXFudXFrZDkycWkifQ.1DeOSOxVvgoIUTBqxbqp5Q';
-      const map = new mapboxgl.Map({
-          container: 'map', // container ID
-          style: 'mapbox://styles/mapbox/satellite-v9', // style URL
-          center: [-91.874, 42.76], // starting position [lng, lat]
-          zoom: 12 // starting zoom
-      });*/
+      var polyline, pos1, pos2, pos3;
+      var pt3curve = function (strt, end, resolution,factor, map) {
+        var st_lat = strt.lat;
+        var st_lng = strt.lng;
+        var end_lat = end.lat;
+        var end_lng = end.lng;
+        var fx=factor.x;
+        var fy=factor.y;
+        var bearing1 =this.bearing(st_lat,st_lng, end_lat, end_lng );
+        bearing1= bearing1>180?bearing1+45:bearing1-45;
+        var dia=this.distance(st_lat, st_lng, end_lat, end_lng)*fx;
+        var hyp=Math.sqrt(2)*((dia*fy)/2);
+        var pos=this.destinationpoint(strt,bearing1, hyp);
+        var mid_lat = pos.lat;
+        var mid_lng = pos.lng;
 
-      var map = new MapmyIndia.Map("map", {
-        center: [28.61, 77.23],
-        zoomControl: true,
-        location: true,
-        // backgroundColor:"red",
-      });
+        var points = [];
+        for (it = 0; it <= 1; it += resolution) {points.push(this.getBezier({x: st_lat,y: st_lng,},{x: mid_lat,y: mid_lng,},{x: end_lat,y: end_lng,},it));}
+        
+        var path = [];
+        for (var i = 0; i < points.length - 1; i++) {
+          path.push({ lat: points[i].x, lng: points[i].y });
+        }
+      
+        
+        if (polyline) {
+          MapmyIndia.remove({ map: map, layer: polyline });
+          polyline = "";
+        }
+      
+        polyline = new MapmyIndia.Polyline({
+          map: map,
+          paths: path,
+          strokeColor: "#000000",
+          dasharray:[2,3] ,
+          strokeOpacity: 1.0,
+          strokeWeight: 3,
+          fitbounds: false,
+        });
+        setTimeout(() => {          
+          polyline.extend(strt);
+        }, 10);
 
-      const draw = new MapboxDraw({
-        displayControlsDefault: false,
-        // Select which mapbox-gl-draw control buttons to add to the map.
-        controls: {
-          polygon: true,
-          trash: true,
-
-          line_string: true,
-        },
-        // Set mapbox-gl-draw to draw by default.
-        // The user does not have to click the polygon control button first.
-        /*defaultMode: "draw_polygon",*/
-      });
-      map.addControl(draw);
-
-      map.on("draw.create", updateArea);
-      map.on("draw.delete", updateArea);
-      map.on("draw.update", updateArea);
-
-      var geoData = {
-        type: "FeatureCollection",
-        features: [],
+        return polyline;
       };
-      var marker2 = "";
-      function updateArea(e) {
-        const data = draw.getAll();
-        const answer = document.getElementById("calculated-area");
-        if (data.features.length > 0) {
-          if (marker2) {
-            MapmyIndia.remove({ map: map, layer: marker2 });
-            if (geoData.features.length) geoData.features = [];
-          }
-          for (var i = 0; i < data.features.length; i++) {
-            if (data.features[i].geometry.type == "Polygon") {
-              const area = polygonArea1(data.features[i].geometry.coordinates);
-              const rounded_area = Math.round(area * 100) / 100;
-              const center = get_polygon_centroid(
-                data.features[i].geometry.coordinates,
-                {
-                  htmlPopup:
-                    "<p><strong>" +
-                    rounded_area +
-                    "</strong></p><p>square meters</p>",
-                }
-              );
-              geoData.features.push(center);
-            } else if (data.features[i].geometry.type == "LineString") {
-              var count = 0;
-              var cordarr = data.features[i].geometry.coordinates;
-              for (k = 0; k < cordarr.length; k++) {
-                if (cordarr[k + 1]) {
-                  var dis = distance1(cordarr[k], cordarr[k + 1]);
-                  //var dis = distance(storeLatLng[i][0], storeLatLng[i][1], storeLatLng[i + 1][0], storeLatLng[i + 1][1], "K");
-                  if (dis) count = count + dis;
-                }
-              }
-              const rounded_dis = Math.round(count * 100) / 100;
-              var end1 = point(cordarr[cordarr.length - 1], {
-                htmlPopup:
-                  "<p><strong>" + rounded_dis + "</strong></p><p> meter</p>",
-              });
-              geoData.features.push(end1);
-            }
-            if (i == data.features.length - 1)
-              marker2 = MapmyIndia.Marker({
-                map: map,
-                position: geoData,
-                icon_url: "https://apis.mapmyindia.com/map_v3/1.png",
-                clusters: true,
-                /*fitbounds: true,*/
-                cType: 1,
-                /*fitboundOptions: { padding: 120, duration: 1000 },*/
-                popupOptions: { offset: { bottom: [0, -20] } },
-              });
-            // Restrict the area to 2 decimal points.
-            /* answer.innerHTML = `<p><strong>${rounded_area}</strong></p><p>square meters</p>`; */
-          }
-        } else {
-          answer.innerHTML = "";
-          if (marker2) MapmyIndia.remove({ map: map, layer: marker2 });
-          if (e.type !== "draw.delete")
-            alert("Click the map to draw a polygon.");
-        }
-      }
-    </script>
 
-    <script>
-      function geometry1(_) {
-        var area = 0,
-          i;
-        switch (_.type) {
-          case "Polygon":
-            return polygonArea1(_.coordinates);
-          case "MultiPolygon":
-            for (i = 0; i < _.coordinates.length; i++) {
-              area += polygonArea(_.coordinates[i]);
-            }
-            return area;
-          case "Point":
-          case "MultiPoint":
-          case "LineString":
-          case "MultiLineString":
-            return 0;
-          case "GeometryCollection":
-            for (i = 0; i < _.geometries.length; i++) {
-              area += geometry(_.geometries[i]);
-            }
-            return area;
-        }
-      }
-
-      function polygonArea1(coords) {
-        var area = 0;
-        if (coords && coords.length > 0) {
-          area += Math.abs(ringArea1(coords[0]));
-          for (var i = 1; i < coords.length; i++) {
-            area -= Math.abs(ringArea1(coords[i]));
-          }
-        }
-        return area;
-      }
-      var RADIUS = 6378137;
-      function ringArea1(coords) {
-        var p1,
-          p2,
-          p3,
-          lowerIndex,
-          middleIndex,
-          upperIndex,
-          i,
-          area = 0,
-          coordsLength = coords.length;
-
-        if (coordsLength > 2) {
-          for (i = 0; i < coordsLength; i++) {
-            if (i === coordsLength - 2) {
-              // i = N-2
-              lowerIndex = coordsLength - 2;
-              middleIndex = coordsLength - 1;
-              upperIndex = 0;
-            } else if (i === coordsLength - 1) {
-              // i = N-1
-              lowerIndex = coordsLength - 1;
-              middleIndex = 0;
-              upperIndex = 1;
-            } else {
-              // i = 0 to N-3
-              lowerIndex = i;
-              middleIndex = i + 1;
-              upperIndex = i + 2;
-            }
-            p1 = coords[lowerIndex];
-            p2 = coords[middleIndex];
-            p3 = coords[upperIndex];
-            area += (rad(p3[0]) - rad(p1[0])) * Math.sin(rad(p2[1]));
-          }
-
-          area = (area * RADIUS * RADIUS) / 2;
-        }
-
-        return area;
-      }
-
-      function get_polygon_centroid(coord, properties) {
-        var xSum = 0;
-        var ySum = 0;
-        var len = 0;
-        for (j = 0; j < coord.length; j++) {
-          for (i = 0; i < coord[j].length - 1; i++) {
-            xSum += coord[j][i][0];
-            ySum += coord[j][i][1];
-            len++;
-          }
-        }
-
-        return point([xSum / len, ySum / len], properties);
-      }
-
-      function distance1(start, destination, radius = 6371008.8) {
-        const R = radius;
-        const φ1 = rad(start[1]),
-          λ1 = rad(start[0]);
-        const φ2 = rad(destination[1]),
-          λ2 = rad(destination[0]);
-        const Δφ = φ2 - φ1;
-        const Δλ = λ2 - λ1;
+      pt3curve.prototype = {
+        B1: function (t) {
+          return t * t;
+        },
+        B2: function (t) {
+          return 2 * (1 - t) * t;
+        },
+        B3: function (t) {
+          return (1 - t) * (1 - t);
+        },
+        getBezier: function (C1, C2, C3, percent) {
+          var pos = {};
+          pos.x =
+            C1.x * this.B1(percent) +
+            C2.x * this.B2(percent) +
+            C3.x * this.B3(percent);
+          pos.y =
+            C1.y * this.B1(percent) +
+            C2.y * this.B2(percent) +
+            C3.y * this.B3(percent);
+          return pos;
+        },
+        distance: function(lat1, lon1, lat2, lon2) {
+        const R = 6378137; // metres
+        const φ1 = (lat1 * Math.PI) / 180; // φ, λ in radians
+        const φ2 = (lat2 * Math.PI) / 180;
+        const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+        const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
         const a =
           Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
           Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const d = R * c;
 
+        const d = R * c; // in metres
         return d;
-      }
+      },bearing :function (λ1, φ1, λ2, φ2) {
+        const lat1 = (λ1 * Math.PI) / 180;
+        const lat2 = (λ2 * Math.PI) / 180;
+        const dLon = (φ2 - φ1) * (Math.PI / 180);
+        const y = Math.sin(dLon) * Math.cos(lat2);
+        const x =
+          Math.cos(lat1) * Math.sin(lat2) -
+          Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+        const brng = Math.atan2(y, x);
 
-      function rad(_) {
-        return (_ * Math.PI) / 180;
-      }
+        return (brng * (180 / Math.PI) + 360) % 360;
+      },
+     destinationpoint: function (point,brng, dist) {
+      dist = dist / 6378137;  
+      brng = brng*Math.PI / 180;  
 
-      function point(coordinates, properties, options) {
-        if (!coordinates) throw new Error("coordinates is required");
-        if (!Array.isArray(coordinates))
-          throw new Error("coordinates must be an Array");
-        if (coordinates.length < 2)
-          throw new Error("coordinates must be at least 2 numbers long");
-        if (!isNumber(coordinates[0]) || !isNumber(coordinates[1]))
-          throw new Error("coordinates must contain numbers");
+      var lat1 = point.lat*Math.PI / 180, lon1 = point.lng*Math.PI / 180;
 
-        return feature(
-          {
-            type: "Point",
-            coordinates: coordinates,
-          },
-          properties,
-          options
-        );
-      }
+      var lat2 = Math.asin(Math.sin(lat1) * Math.cos(dist) + 
+                        Math.cos(lat1) * Math.sin(dist) * Math.cos(brng));
 
-      function feature(geometry, properties, options) {
-        // Optional Parameters
-        options = options || {};
-        if (!isObject(options)) throw new Error("options is invalid");
+      var lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(dist) *
+                                Math.cos(lat1), 
+                                Math.cos(dist) - Math.sin(lat1) *
+                                Math.sin(lat2));
 
-        // Validation
-        if (geometry === undefined) throw new Error("geometry is required");
-        if (properties && properties.constructor !== Object)
-          throw new Error("properties must be an Object");
 
-        // Main
-        var feat = { type: "Feature" };
-        feat.properties = properties || {};
-        feat.geometry = geometry;
-        return feat;
-      }
-
-      var earthRadius = 6371008.8;
-      var factors = {
-        meters: earthRadius,
-        metres: earthRadius,
-        millimeters: earthRadius * 1000,
-        millimetres: earthRadius * 1000,
-        centimeters: earthRadius * 100,
-        centimetres: earthRadius * 100,
-        kilometers: earthRadius / 1000,
-        kilometres: earthRadius / 1000,
-        miles: earthRadius / 1609.344,
-        nauticalmiles: earthRadius / 1852,
-        inches: earthRadius * 39.37,
-        yards: earthRadius / 1.0936,
-        feet: earthRadius * 3.28084,
-        radians: 1,
-        degrees: earthRadius / 111325,
+      return {lat:lat2* 180 / Math.PI,lng:lon2* 180 / Math.PI};
+}
       };
-      function isNumber(num) {
-        return !isNaN(num) && num !== null && !Array.isArray(num);
-      }
-      function isObject(input) {
-        return !!input && input.constructor === Object;
+    </script>
+    <script>
+      var ply;
+      function initMap1() {
+        map = new MapmyIndia.Map("map", {
+          center: [28.61, 77.23],
+          zoomControl: true,
+          location: true,
+          // backgroundColor:"red",
+        });
+        pos1 = { lng: 77.27428863526279, lat: 28.550908438470714 };
+        pos3 = { lng: 77.53557294755876, lat: 28.660477852756003};
+     
+
+        marker1 = new MapmyIndia.Marker({
+          map: map,
+          position: pos1,
+          draggable: true,
+        });
+        marker3 = new MapmyIndia.Marker({
+          map: map,
+          position: pos3,
+          draggable: true,
+        });
+
+        if (ply) {MapmyIndia.remove({ map: map, layer: ply });ply = "";}
+      
+        ply = new MapmyIndia.Polyline({
+          map: map,
+          paths: [pos1,pos3],
+          strokeColor: "#000000",
+          strokeOpacity: 1.0,
+          strokeWeight: 5,
+          fitbounds: false,
+        });
+
+        var factor= {x:1,y:1};
+        marker1.addListener("dragend", function (e) {
+          pos1 = e.target._lngLat;
+          if (ply) {MapmyIndia.remove({ map: map, layer: ply });ply = "";}
+      
+        ply = new MapmyIndia.Polyline({
+          map: map,
+          paths: [pos1,pos3],
+          strokeColor: "#000000",
+          strokeOpacity: 1.0,
+          strokeWeight: 5,
+          fitbounds: false,
+        });
+
+          new pt3curve(pos1, pos3,0.05 ,factor,map);
+        });
+        marker3.addListener("dragend", function (e) {
+          pos3 = e.target._lngLat;
+          if (ply) {MapmyIndia.remove({ map: map, layer: ply });ply = "";}
+      
+        ply = new MapmyIndia.Polyline({
+          map: map,
+          paths: [pos1,pos3],
+          strokeColor: "#000000",
+          strokeOpacity: 1.0,
+          strokeWeight: 5,
+          fitbounds: false,
+        });
+          new pt3curve(pos1, pos3,0.05 ,factor,map);
+        });
+          var curvedLine = new pt3curve(pos1, pos3, 0.05,factor, map);
+      
       }
     </script>
   </body>
