@@ -21,55 +21,47 @@
 
     <script>
       var polyline, pos1, pos2, pos3;
-      var pt3curve = function (latlong1, latlong2, latlong3, resolution, map) {
-        var lat1 = latlong1.lat;
-        var long1 = latlong1.lng;
-        var lat2 = latlong2.lat;
-        var long2 = latlong2.lng;
-        var lat3 = latlong3.lat;
-        var long3 = latlong3.lng;
+      var pt3curve = function (strt, end, resolution,factor, map) {
+        var st_lat = strt.lat;
+        var st_lng = strt.lng;
+        var end_lat = end.lat;
+        var end_lng = end.lng;
+        var fx=factor.x;
+        var fy=factor.y;
+        var bearing1 =this.bearing(st_lat,st_lng, end_lat, end_lng );
+        bearing1= bearing1>180?bearing1+45:bearing1-45;
+        var dia=this.distance(st_lat, st_lng, end_lat, end_lng)*fx;
+        var hyp=Math.sqrt(2)*((dia*fy)/2);
+        var pos=this.destinationpoint(strt,bearing1, hyp);
+        var mid_lat = pos.lat;
+        var mid_lng = pos.lng;
 
         var points = [];
-
-        for (it = 0; it <= 1; it += resolution) {
-          points.push(
-            this.getBezier(
-              {
-                x: lat1,
-                y: long1,
-              },
-              {
-                x: lat2,
-                y: long2,
-              },
-              {
-                x: lat3,
-                y: long3,
-              },
-              it
-            )
-          );
-        }
-
+        for (it = 0; it <= 1; it += resolution) {points.push(this.getBezier({x: st_lat,y: st_lng,},{x: mid_lat,y: mid_lng,},{x: end_lat,y: end_lng,},it));}
+        
         var path = [];
         for (var i = 0; i < points.length - 1; i++) {
           path.push({ lat: points[i].x, lng: points[i].y });
         }
-
+      
+        
         if (polyline) {
           MapmyIndia.remove({ map: map, layer: polyline });
           polyline = "";
         }
+      
         polyline = new MapmyIndia.Polyline({
           map: map,
           paths: path,
-          strokeColor: "#333",
+          strokeColor: "#000000",
+          dasharray:[2,3] ,
           strokeOpacity: 1.0,
-          strokeWeight: 5,
+          strokeWeight: 3,
           fitbounds: false,
         });
-
-        // Line.setMap(map);
+        setTimeout(() => {          
+          polyline.extend(strt);
+        }, 10);
 
         return polyline;
       };
@@ -96,11 +88,7 @@
             C3.y * this.B3(percent);
           return pos;
         },
-      };
-    </script>
-
-    <script>
-      function distance(lat1, lon1, lat2, lon2) {
+        distance: function(lat1, lon1, lat2, lon2) {
         const R = 6378137; // metres
         const φ1 = (lat1 * Math.PI) / 180; // φ, λ in radians
         const φ2 = (lat2 * Math.PI) / 180;
@@ -114,9 +102,7 @@
 
         const d = R * c; // in metres
         return d;
-      }
-
-      function bearing(λ1, φ1, λ2, φ2) {
+      },bearing :function (λ1, φ1, λ2, φ2) {
         const lat1 = (λ1 * Math.PI) / 180;
         const lat2 = (λ2 * Math.PI) / 180;
         const dLon = (φ2 - φ1) * (Math.PI / 180);
@@ -127,27 +113,28 @@
         const brng = Math.atan2(y, x);
 
         return (brng * (180 / Math.PI) + 360) % 360;
-      }
+      },
+     destinationpoint: function (point,brng, dist) {
+      dist = dist / 6378137;  
+      brng = brng*Math.PI / 180;  
 
-      function offset(c1, distance, bearing, d) {
-        var lat1 = (c1.lat * Math.PI) / 180;
-        var lon1 = (c1.lng * Math.PI) / 180;
-        var dByR = distance / 6378137;
-        var bearing = (bearing * Math.PI) / 180;
-        var lat =
-          Math.cos(dByR) * Math.sin(lat1) +
-          Math.sin(dByR) * Math.cos(lat1) * Math.cos(bearing);
-        var lng =
-          lon1 +
-          Math.atan2(
-            Math.sin(dByR) * Math.cos(lat1) * Math.sin(bearing),
-            Math.cos(dByR) - Math.sin(lat1) * lat
-          );
-        return { lat: (lat * 180) / Math.PI, lng: (lng * 180) / Math.PI };
-      }
+      var lat1 = point.lat*Math.PI / 180, lon1 = point.lng*Math.PI / 180;
+
+      var lat2 = Math.asin(Math.sin(lat1) * Math.cos(dist) + 
+                        Math.cos(lat1) * Math.sin(dist) * Math.cos(brng));
+
+      var lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(dist) *
+                                Math.cos(lat1), 
+                                Math.cos(dist) - Math.sin(lat1) *
+                                Math.sin(lat2));
+
+
+      return {lat:lat2* 180 / Math.PI,lng:lon2* 180 / Math.PI};
+}
+      };
     </script>
-
     <script>
+      var ply;
       function initMap1() {
         map = new MapmyIndia.Map("map", {
           center: [28.61, 77.23],
@@ -155,18 +142,13 @@
           location: true,
           // backgroundColor:"red",
         });
-        pos1 = { lng: 77.37265058164473, lat: 28.609787847238394 };
-        pos2 = { lng: 77.15425314757749, lat: 28.634401499539848 };
-        pos3 = { lng: 77.11154665994235, lat: 28.426013204567937 };
+        pos1 = { lng: 77.27428863526279, lat: 28.550908438470714 };
+        pos3 = { lng: 77.53557294755876, lat: 28.660477852756003};
+     
 
         marker1 = new MapmyIndia.Marker({
           map: map,
           position: pos1,
-          draggable: true,
-        });
-        marker2 = new MapmyIndia.Marker({
-          map: map,
-          position: pos2,
           draggable: true,
         });
         marker3 = new MapmyIndia.Marker({
@@ -175,23 +157,49 @@
           draggable: true,
         });
 
+        if (ply) {MapmyIndia.remove({ map: map, layer: ply });ply = "";}
+      
+        ply = new MapmyIndia.Polyline({
+          map: map,
+          paths: [pos1,pos3],
+          strokeColor: "#000000",
+          strokeOpacity: 1.0,
+          strokeWeight: 5,
+          fitbounds: false,
+        });
+
+        var factor= {x:1,y:1};
         marker1.addListener("dragend", function (e) {
           pos1 = e.target._lngLat;
-          arc(pos1, pos2, pos3);
+          if (ply) {MapmyIndia.remove({ map: map, layer: ply });ply = "";}
+      
+        ply = new MapmyIndia.Polyline({
+          map: map,
+          paths: [pos1,pos3],
+          strokeColor: "#000000",
+          strokeOpacity: 1.0,
+          strokeWeight: 5,
+          fitbounds: false,
         });
-        marker2.addListener("dragend", function (e) {
-          pos2 = e.target._lngLat;
-          arc(pos1, pos2, pos3);
+
+          new pt3curve(pos1, pos3,0.05 ,factor,map);
         });
         marker3.addListener("dragend", function (e) {
           pos3 = e.target._lngLat;
-          arc(pos1, pos2, pos3);
+          if (ply) {MapmyIndia.remove({ map: map, layer: ply });ply = "";}
+      
+        ply = new MapmyIndia.Polyline({
+          map: map,
+          paths: [pos1,pos3],
+          strokeColor: "#000000",
+          strokeOpacity: 1.0,
+          strokeWeight: 5,
+          fitbounds: false,
         });
-
-        function arc(pos1, pos2, pos3) {
-          var curvedLine = new pt3curve(pos1, pos2, pos3, 0.01, map);
-        }
-        arc(pos1, pos2, pos3);
+          new pt3curve(pos1, pos3,0.05 ,factor,map);
+        });
+          var curvedLine = new pt3curve(pos1, pos3, 0.05,factor, map);
+      
       }
     </script>
   </body>
