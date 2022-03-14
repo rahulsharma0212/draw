@@ -113,7 +113,7 @@ return (new DOMParser().parseFromString(svg, 'image/svg+xml')).firstChild;
        "features":  coordinates.map((c, i) => ({
 	            "type": 'Feature',
 	            "properties": {
-	                "text": labels[i]+'r',
+	                "text": labels[i],
 	            },
 	            "geometry": {
 	                "type": 'Point',
@@ -382,7 +382,10 @@ class RulerControl extends Base {
           /*if(this.coordinates.length>=2){
           MapmyIndia.addGeoJson({ map: this.map, data:lineStringFeature(this.coordinates)});
         MapmyIndia.addGeoJson({ map: this.map, data:pointFeatureCollection(this.coordinates, this.labels)});}*/
-
+        MapmyIndia.addGeoJson({
+                    map:this.map,data:pointFeatureCollection(this.coordinates, this.labels),
+                    cType:1   // call back function
+                })
        var marker= MapmyIndia.Marker({map:this.map,position:pointFeatureCollection(this.coordinates, this.labels)})
 	    }
 	    updateLabels() {
