@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Draw a polygon and calculate its area</title>
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <script src="https://apis.mapmyindia.com/advancedmaps/api/44ce1a15d05ddf735b82f88d97fec3ae/map_sdk?layer=vector&v=2.0"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <style>
+      .calculation-box {
+        height: 75px;
+        width: 150px;
+        position: absolute;
+        bottom: 40px;
+        left: 10px;
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 15px;
+        text-align: center;
+      }
+
+      p {
+        font-family: "Open Sans";
+        margin: 0;
+        font-size: 13px;
+      }
+    </style>
+
+    <div id="map"></div>
+    <div class="calculation-box">
+      <p>Click the map to draw a polygon.</p>
+      <div id="calculated-area"></div>
+    </div>
+
+    <script>
+      /*mapboxgl.accessToken = 'pk.eyJ1IjoicmFodWwwMjEyIiwiYSI6ImNreWExdXN3OTAxODEydXFudXFrZDkycWkifQ.1DeOSOxVvgoIUTBqxbqp5Q';
+      const map = new mapboxgl.Map({
+          container: 'map', // container ID
+          style: 'mapbox://styles/mapbox/satellite-v9', // style URL
+          center: [-91.874, 42.76], // starting position [lng, lat]
+          zoom: 12 // starting zoom
+      });*/
+
+      var map = new MapmyIndia.Map("map", {
+        center: [28.61, 77.23],
+        zoomControl: true,
+        location: true,
+        // backgroundColor:"red",
+      });
+</script>
+
+<script>
+
+function labelFormat(number) {
+	    if (number < 1) {
+	        return `${(number * 1000).toFixed()} m`;
+	    }
+	    return `${number.toFixed(2)} km`;
+	}
+
+  function iconRuler(){
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" enable-background="new 0 0 24 24" viewBox="0 0 24 24" width="22" height="22" fill="#505050">
+    <rect fill="none" height="24" width="24"/>
+    <path d="M20,6H4C2.9,6,2,6.9,2,8v8c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V8C22,6.9,21.1,6,20,6z M20,16H4V8h3v3c0,0.55,0.45,1,1,1h0 c0.55,0,1-0.45,1-1V8h2v3c0,0.55,0.45,1,1,1h0c0.55,0,1-0.45,1-1V8h2v3c0,0.55,0.45,1,1,1h0c0.55,0,1-0.45,1-1V8h3V16z"/>
+</svg>
+`;
+return (new DOMParser().parseFromString(svg, 'image/svg+xml')).firstChild;
+  }
+
+  function lineStringFeature(coordinates) {
+	    return {
+	        type: 'Feature',
+	        properties: {},
+	        geometry: {
+	            type: 'LineString',
+	            coordinates,
+	        },
+	    };
+	}
+
+  function pointFeatureCollection(coordinates = [], labels = []) {
+	    /*return {
+	        type: 'FeatureCollection',
+	        features: coordinates.map((c, i) => ({
+	            type: 'Feature',
+	            properties: {
+	                text: labels[i],
+	            },
+	            geometry: {
+	                type: 'Point',
+	                coordinates: c,
+	            },
+	        })),
+	    };*/
+      return {
+        "type": "FeatureCollection",
+       "features":  coordinates.map((c, i) => ({
+	            "type": 'Feature',
+	            "properties": {
+	                "text": labels[i]+'r',
+	            },
+	            "geometry": {
+	                "type": 'Point',
+	                "coordinates": c,
+	            },
+	        }))}
+	}
+
+  function distance(from, to, options) {
+    if (options === void 0) { options = {}; }
+    var coordinates1 = getCoord(from);
+    var coordinates2 = getCoord(to);
+    var dLat = degreesToRadians(coordinates2[1] - coordinates1[1]);
+    var dLon = degreesToRadians(coordinates2[0] - coordinates1[0]);
+    var lat1 = degreesToRadians(coordinates1[1]);
+    var lat2 = degreesToRadians(coordinates2[1]);
+    var a = Math.pow(Math.sin(dLat / 2), 2) +
+        Math.pow(Math.sin(dLon / 2), 2) * Math.cos(lat1) * Math.cos(lat2);
+    return radiansToLength(2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)), options.units);
+}
+
+function getCoord(coord) {
+    if (!coord) {
+        throw new Error("coord is required");
+    }
+    if (!Array.isArray(coord)) {
+        if (coord.type === "Feature" &&
+            coord.geometry !== null &&
+            coord.geometry.type === "Point") {
+            return coord.geometry.coordinates;
+        }
+        if (coord.type === "Point") {
+            return coord.coordinates;
+        }
+    }
+    if (Array.isArray(coord) &&
+        coord.length >= 2 &&
+        !Array.isArray(coord[0]) &&
+        !Array.isArray(coord[1])) {
+        return coord;
+    }
+    throw new Error("coord must be GeoJSON Point or an Array of numbers");
+}
+function degreesToRadians(degrees) {
+    var radians = degrees % 360;
+    return (radians * Math.PI) / 180;
+}
+var earthRadius = 6371008.8;
+var factors = {
+    centimeters: earthRadius * 100,
+    centimetres: earthRadius * 100,
+    degrees: earthRadius / 111325,
+    feet: earthRadius * 3.28084,
+    inches: earthRadius * 39.37,
+    kilometers: earthRadius / 1000,
+    kilometres: earthRadius / 1000,
+    meters: earthRadius,
+    metres: earthRadius,
+    miles: earthRadius / 1609.344,
+    millimeters: earthRadius * 1000,
+    millimetres: earthRadius * 1000,
+    nauticalmiles: earthRadius / 1852,
+    radians: 1,
+    yards: earthRadius / 1.0936,
+};
+function radiansToLength(radians, units) {
+    if (units === void 0) { units = "kilometers"; }
+    var factor = factors[units];
+    if (!factor) {
+        throw new Error(units + " units is invalid");
+    }
+    return radians * factor;
+}
+
+  class Button {
+    constructor() {
+        this.node = document.createElement('button');
+        this.node.type = 'button';
+        this.icon = null;
+    }
+    setIcon(icon) {
+        this.icon = icon;
+        this.node.appendChild(icon);
+    }
+    setText(text) {
+        this.node.textContent = text;
+    }
+    onClick(callback) {
+        this.node.addEventListener('click', callback);
+    }
+    addClassName(className) {
+        this.node.classList.add(className);
+    }
+    removeClassName(className) {
+        this.node.classList.remove(className);
+    }
+}
+
+class Base {
+    constructor() {
+        this.node = document.createElement('div');
+        this.node.classList.add('mapboxgl-ctrl');
+        this.node.classList.add('mapboxgl-ctrl-group');
+        this.node.classList.add('mapbox-control');
+    }
+    addButton(button) {
+        this.node.appendChild(button.node);
+    }
+    addClassName(className) {
+        this.node.classList.add(className);
+    }
+    removeClassName(className) {
+        this.node.classList.remove(className);
+    }
+    onAddControl() {
+        // extend
+    }
+    onRemoveControl() {
+        // extend
+    }
+    onAdd(map) {
+        this.map = map;
+        this.onAddControl();
+        return this.node;
+    }
+    onRemove() {
+        this.onRemoveControl();
+        this.node.parentNode.removeChild(this.node);
+        this.map = undefined;
+    }
+}
+
+const LAYER_LINE = 'controls-layer-line';
+	const LAYER_SYMBOL = 'controls-layer-symbol';
+	const SOURCE_LINE = 'controls-source-line';
+	const SOURCE_SYMBOL = 'controls-source-symbol';
+	const MAIN_COLOR = '#263238';
+	const HALO_COLOR = '#fff';
+
+class RulerControl extends Base {
+	    constructor(options) {
+	        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+	        super();
+	        this.isMeasuring = false;
+	        this.markers = [];
+	        this.coordinates = [];
+	        this.labels = [];
+	        this.units = (_a = options === null || options === void 0 ? void 0 : options.units) !== null && _a !== void 0 ? _a : 'kilometers';
+	        this.font = (_b = options === null || options === void 0 ? void 0 : options.font) !== null && _b !== void 0 ? _b : ['Roboto Medium'];
+	        this.fontSize = (_c = options === null || options === void 0 ? void 0 : options.fontSize) !== null && _c !== void 0 ? _c : 12;
+	        this.fontHalo = (_d = options === null || options === void 0 ? void 0 : options.fontHalo) !== null && _d !== void 0 ? _d : 1;
+	        this.textVariableAnchor = (options === null || options === void 0 ? void 0 : options.textVariableAnchor) || ['top'];
+	        this.textAllowOverlap = (options === null || options === void 0 ? void 0 : options.textAllowOverlap) || false;
+	        this.markerNodeSize = `${(_e = options === null || options === void 0 ? void 0 : options.markerNodeSize) !== null && _e !== void 0 ? _e : 12}px`;
+	        this.markerNodeBorderWidth = `${(_f = options === null || options === void 0 ? void 0 : options.markerNodeBorderWidth) !== null && _f !== void 0 ? _f : 2}px`;
+	        this.labelFormat = (_g = options === null || options === void 0 ? void 0 : options.labelFormat) !== null && _g !== void 0 ? _g : labelFormat;
+	        this.mainColor = (_h = options === null || options === void 0 ? void 0 : options.mainColor) !== null && _h !== void 0 ? _h : MAIN_COLOR;
+	        this.secondaryColor = (_j = options === null || options === void 0 ? void 0 : options.secondaryColor) !== null && _j !== void 0 ? _j : HALO_COLOR;
+	        this.button = new Button();
+	        this.mapClickListener = this.mapClickListener.bind(this);
+	        this.styleLoadListener = this.styleLoadListener.bind(this);
+	    }
+	    insert() {
+	        this.addClassName('mapbox-control-ruler');
+	        this.button.setIcon(iconRuler());
+	        this.button.onClick(() => {
+	            if (this.isMeasuring) {
+	                this.measuringOff();
+	            }
+	            else {
+	                this.measuringOn();
+	            }
+	        });
+	        this.addButton(this.button);
+	    }
+	    draw() {debugger;
+        
+	       /* this.map.addSource(SOURCE_LINE, {
+	            type: 'geojson',
+	            data: lineStringFeature(this.coordinates),
+	        });
+	        this.map.addSource(SOURCE_SYMBOL, {
+	            type: 'geojson',
+	            data: pointFeatureCollection(this.coordinates, this.labels),
+	        });
+	        this.map.addLayer({
+	            id: LAYER_LINE,
+	            type: 'line',
+	            source: SOURCE_LINE,
+	            paint: {
+	                'line-color': this.mainColor,
+	                'line-width': 2,
+	            },
+	        });
+	        this.map.addLayer({
+	            id: LAYER_SYMBOL,
+	            type: 'symbol',
+	            source: SOURCE_SYMBOL,
+	            layout: {
+	                'text-field': '{text}',
+	                'text-font': this.font,
+	                'text-anchor': 'top',
+	                'text-size': this.fontSize,
+	                'text-offset': [0, 0.8],
+	            },
+	            paint: {
+	                'text-color': this.mainColor,
+	                'text-halo-color': this.secondaryColor,
+	                'text-halo-width': this.fontHalo,
+	            },
+	        });*/
+	    }
+	    measuringOn() {
+	        this.isMeasuring = true;
+	        this.markers = [];
+	        this.coordinates = [];
+	        this.labels = [];
+	        this.map.getCanvas().style.cursor = 'crosshair';
+	        this.button.addClassName('-active');
+	        this.draw();
+	        this.map.on('click', this.mapClickListener);
+	        this.map.on('style.load', this.styleLoadListener);
+	        this.map.fire('ruler.on');
+	    }
+	    measuringOff() {
+	        this.isMeasuring = false;
+	        this.map.getCanvas().style.cursor = '';
+	        this.button.removeClassName('-active');
+	        // remove layers, sources and event listeners
+	        this.map.removeLayer(LAYER_LINE);
+	        this.map.removeLayer(LAYER_SYMBOL);
+	        this.map.removeSource(SOURCE_LINE);
+	        this.map.removeSource(SOURCE_SYMBOL);
+	        this.markers.forEach(m => m.remove());
+	        this.map.off('click', this.mapClickListener);
+	        this.map.off('style.load', this.styleLoadListener);
+	        this.map.fire('ruler.off');
+	    }
+	    mapClickListener(event) {
+	        const markerNode = this.getMarkerNode();
+	        const marker = new mapboxgl.Marker({ element: markerNode, draggable: true })
+	            .setLngLat(event.lngLat)
+	            .addTo(this.map);
+	        const newCoordinate = [event.lngLat.lng, event.lngLat.lat];
+	        this.coordinates.push(newCoordinate);
+	        this.updateLabels();
+	        this.updateSource();
+	        this.markers.push(marker);
+	        this.map.fire('ruler.change', { coordinates: this.coordinates });
+	        marker.on('drag', () => {
+	            const index = this.markers.indexOf(marker);
+	            const lngLat = marker.getLngLat();
+	            this.coordinates[index] = [lngLat.lng, lngLat.lat];
+	            this.updateLabels();
+	            this.updateSource();
+	        });
+	        marker.on('dragend', () => {
+	            this.map.fire('ruler.change', { coordinates: this.coordinates });
+	        });
+	    }
+	    updateSource() {
+	        /*const lineSource = this.map.getSource(SOURCE_LINE);
+	        const symbolSource = this.map.getSource(SOURCE_SYMBOL);
+	        lineSource.setData(lineStringFeature(this.coordinates));
+	        symbolSource.setData(pointFeatureCollection(this.coordinates, this.labels));*/
+          /*if(this.coordinates.length>=2){
+          MapmyIndia.addGeoJson({ map: this.map, data:lineStringFeature(this.coordinates)});
+        MapmyIndia.addGeoJson({ map: this.map, data:pointFeatureCollection(this.coordinates, this.labels)});}*/
+
+       var marker= MapmyIndia.Marker({map:this.map,position:pointFeatureCollection(this.coordinates, this.labels)})
+	    }
+	    updateLabels() {
+	        const { coordinates, units, labelFormat } = this;
+	        let sum = 0;
+	        this.labels = coordinates.map((coordinate, index) => {
+	            if (index === 0)
+	                return labelFormat(0);
+	            sum += distance(coordinates[index - 1], coordinates[index], { units });
+	            return labelFormat(sum);
+	        });
+	    }
+	    getMarkerNode() {
+	        const node = document.createElement('div');
+	        node.style.width = '12px';
+	        node.style.height = '12px';
+	        node.style.borderRadius = '50%';
+	        node.style.background = this.secondaryColor;
+	        node.style.boxSizing = 'border-box';
+	        node.style.border = `2px solid ${this.mainColor}`;
+	        return node;
+	    }
+	    styleLoadListener() {
+	        this.draw();
+	    }
+	    onAddControl() {
+	        this.insert();
+	    }
+	    onRemoveControl() {
+	        if (this.isMeasuring)
+	            this.measuringOff();
+	        this.map.off('click', this.mapClickListener);
+	    }
+	}
+
+  map.addControl(new RulerControl(), 'bottom-right');
+	map.on('ruler.on', () => console.log('%cruler.on', 'color: #3D5AFE'));
+	map.on('ruler.off', () => console.log('%cruler.off', 'color: #3D5AFE'));
+	map.on('ruler.change', (params) => {
+	  console.log('%cruler.change', 'color: #3D5AFE');
+	  console.table(params.coordinates);
+	});
+
+
+
+</script>
+  </body>
+</html>
