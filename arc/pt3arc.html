@@ -21,27 +21,28 @@
 
     <script>
       var polyline, pos1, pos2, pos3;
-      var pt3curve = function (strt, end, resolution,factor, map) {
-        var st_lat = strt.lat;
-        var st_lng = strt.lng;
-        var end_lat = end.lat;
-        var end_lng = end.lng;
-        var fx=factor.x;
-        var fy=factor.y;
-        var bearing1 =this.bearing(st_lat,st_lng, end_lat, end_lng );
-        bearing1= bearing1>180?bearing1+45:bearing1-45;
-        var dia=this.distance(st_lat, st_lng, end_lat, end_lng)*fx;
+      var pt3curve = function (strt, end, resolution,factor, map) { debugger;
+        var sLat = strt.lat, sLng = strt.lng, eLat = end.lat, eLng = end.lng, fx=factor.x, fy=factor.y, heading =[];
+        var brng1 =this.bearing(sLat,sLng, eLat, eLng );
+        brng1= brng1>180?brng1+45:brng1-45;heading.push(brng1);
+        var dia=this.distance(sLat, sLng, eLat, eLng)*fx;
         var hyp=Math.sqrt(2)*((dia*fy)/2);
-        var pos=this.destinationpoint(strt,bearing1, hyp);
-        var mid_lat = pos.lat;
-        var mid_lng = pos.lng;
+        var pos=this.destinationpoint(strt,brng1, hyp);
+        var mLat = pos.lat,mLng = pos.lng;
 
-        var points = [];
-        for (it = 0; it <= 1; it += resolution) {points.push(this.getBezier({x: st_lat,y: st_lng,},{x: mid_lat,y: mid_lng,},{x: end_lat,y: end_lng,},it));}
+        var pts = []; var p1,h1;
+        for (it = 0; it <= 1; it += resolution) {
+          p1=this.getBezier({x: sLat,y: sLng,},{x: mLat,y: mLng,},{x: eLat,y: eLng,},it)
+          pts.push(p1);
+          if (pts.length>=2){h1=this.bearing(pts[pts.length-1].x,pts[pts.length-1].y,eLat,eLng);
+            h1= h1>180?h1+45:h1-45;
+          heading.push(h1);}
+        
+        }
         
         var path = [];
-        for (var i = 0; i < points.length - 1; i++) {
-          path.push({ lat: points[i].x, lng: points[i].y });
+        for (var i = 0; i < pts.length - 1; i++) {
+          path.push({ lat: pts[i].x, lng: pts[i].y });
         }
       
         
@@ -89,28 +90,26 @@
           return pos;
         },
         distance: function(lat1, lon1, lat2, lon2) {
-        const R = 6378137; // metres
-        const φ1 = (lat1 * Math.PI) / 180; // φ, λ in radians
-        const φ2 = (lat2 * Math.PI) / 180;
-        const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-        const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+        var R = 6378137; // metres
+        var φ1 = (lat1 * Math.PI) / 180; // φ, λ in radians
+        var φ2 = (lat2 * Math.PI) / 180;
+        var Δφ = ((lat2 - lat1) * Math.PI) / 180;
+        var Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
-        const a =
+        var a =
           Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
           Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-        const d = R * c; // in metres
+        var d = R * c; // in metres
         return d;
       },bearing :function (λ1, φ1, λ2, φ2) {
-        const lat1 = (λ1 * Math.PI) / 180;
-        const lat2 = (λ2 * Math.PI) / 180;
-        const dLon = (φ2 - φ1) * (Math.PI / 180);
-        const y = Math.sin(dLon) * Math.cos(lat2);
-        const x =
-          Math.cos(lat1) * Math.sin(lat2) -
-          Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-        const brng = Math.atan2(y, x);
+        var lat1 = (λ1 * Math.PI) / 180;
+        var lat2 = (λ2 * Math.PI) / 180;
+        var dLon = (φ2 - φ1) * (Math.PI / 180);
+        var y = Math.sin(dLon) * Math.cos(lat2);
+        var x =Math.cos(lat1) * Math.sin(lat2) -Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+        var brng = Math.atan2(y, x);
 
         return (brng * (180 / Math.PI) + 360) % 360;
       },
@@ -182,7 +181,7 @@
           fitbounds: false,
         });
 
-          new pt3curve(pos1, pos3,0.05 ,factor,map);
+          new pt3curve(pos1, pos3,0.01 ,factor,map);
         });
         marker3.addListener("dragend", function (e) {
           pos3 = e.target._lngLat;
@@ -196,9 +195,9 @@
           strokeWeight: 5,
           fitbounds: false,
         });
-          new pt3curve(pos1, pos3,0.05 ,factor,map);
+          new pt3curve(pos1, pos3,0.01 ,factor,map);
         });
-          var curvedLine = new pt3curve(pos1, pos3, 0.05,factor, map);
+          var curvedLine = new pt3curve(pos1, pos3, 0.01,factor, map);
       
       }
     </script>
